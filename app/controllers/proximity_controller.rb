@@ -14,7 +14,8 @@ class ProximityController < ApplicationController
 
     return render json: { error: "Buoy coordinates not found" }, status: 404 unless buoy_coords
 
-    balloon_coords = fetch_balloon_data
+    hours_ago = params[:hours_ago].to_i.clamp(0, 23)
+    balloon_coords = fetch_balloon_data(hours_ago)
     return render json: { error: "Balloon data not found" }, status: 502 unless balloon_coords
 
     buoy_xyz = spherical_to_cartesian(*buoy_coords)
@@ -42,8 +43,8 @@ class ProximityController < ApplicationController
       buoy_altitude_km: buoy_coords[2],
       closest_balloon_index: closest_index,
       closest_balloon_triplet: {
-        longitude_deg: closest[0],
-        latitude_deg: closest[1],
+        latitude_deg: closest[0],
+        longitude_deg: closest[1],
         altitude_km: closest[2]
       },
       distance_km: min_distance
@@ -75,8 +76,9 @@ class ProximityController < ApplicationController
     nil
   end
 
-  def fetch_balloon_data
-    uri = URI("https://a.windbornesystems.com/treasure/00.json")
+  def fetch_balloon_data(hours_ago = 0)
+    hours_ago = hours_ago.to_i.clamp(0, 23)
+    uri = URI("https://a.windbornesystems.com/treasure/#{format('%02d', hours_ago)}.json")
     response = Net::HTTP.get_response(uri)
     return nil unless response.is_a?(Net::HTTPSuccess)
 
@@ -85,6 +87,7 @@ class ProximityController < ApplicationController
   rescue
     nil
   end
+
 
   def spherical_to_cartesian(lon_deg, lat_deg, alt_km)
     r = EARTH_RADIUS_KM + alt_km
