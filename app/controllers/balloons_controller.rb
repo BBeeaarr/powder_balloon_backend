@@ -23,7 +23,7 @@ class BalloonsController < ApplicationController
         Math.cos(lat1 * rad_per_deg) * Math.cos(lat2 * rad_per_deg) *
         Math.sin(dlon / 2)**2
 
-    c = 2 * Math::atan2(Math::sqrt(a), Math::sqrt(1 - a))
+    c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     r_km * c
   end
 end
