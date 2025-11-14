@@ -10,6 +10,7 @@ class ProximityController < ApplicationController
 
   def closest_to_buoy
     station_id = params[:station] || "51101"
+    balloon_index = params[:balloon_index]&.to_i || -1
     buoy_coords = fetch_buoy_coordinates(station_id)
 
     return render json: { error: "Buoy coordinates not found" }, status: 404 unless buoy_coords
@@ -20,20 +21,42 @@ class ProximityController < ApplicationController
 
     buoy_xyz = spherical_to_cartesian(*buoy_coords)
 
-    closest = nil
-    closest_index = nil
-    min_distance = Float::INFINITY
+    # If a specific balloon index is requested, use it; otherwise compute the closest
+    selected_triplet = nil
+    selected_index = nil
+    selected_distance = nil
 
-    balloon_coords.each_with_index do |triplet, i|
-      next unless triplet.is_a?(Array) && triplet.size == 3
+    if balloon_index && balloon_index >= 0
+      # Validate index and triplet format
+      return render json: { error: "Invalid balloon_index" }, status: 400 if balloon_index >= balloon_coords.length
 
-      balloon_xyz = spherical_to_cartesian(*triplet)
-      dist = euclidean_distance(buoy_xyz, balloon_xyz)
-      if dist < min_distance
-        min_distance = dist
-        closest = triplet
-        closest_index = i
+      triplet = balloon_coords[balloon_index]
+      return render json: { error: "Invalid balloon data at index" }, status: 502 unless triplet.is_a?(Array) && triplet.size == 3
+
+      selected_triplet = triplet
+      selected_index = balloon_index
+      selected_distance = euclidean_distance(buoy_xyz, spherical_to_cartesian(*triplet))
+    else
+      # Find closest balloon to the buoy
+      min_distance = Float::INFINITY
+      closest = nil
+      closest_index = nil
+
+      balloon_coords.each_with_index do |triplet, i|
+        next unless triplet.is_a?(Array) && triplet.size == 3
+
+        balloon_xyz = spherical_to_cartesian(*triplet)
+        dist = euclidean_distance(buoy_xyz, balloon_xyz)
+        if dist < min_distance
+          min_distance = dist
+          closest = triplet
+          closest_index = i
+        end
       end
+
+      selected_triplet = closest
+      selected_index = closest_index
+      selected_distance = min_distance
     end
 
     render json: {
@@ -41,13 +64,13 @@ class ProximityController < ApplicationController
       buoy_latitude: buoy_coords[0],
       buoy_longitude: buoy_coords[1],
       buoy_altitude_km: buoy_coords[2],
-      closest_balloon_index: closest_index,
+      balloon_index: selected_index,
       closest_balloon_triplet: {
-        latitude_deg: closest[0],
-        longitude_deg: closest[1],
-        altitude_km: closest[2]
+        latitude_deg: selected_triplet[0],
+        longitude_deg: selected_triplet[1],
+        altitude_km: selected_triplet[2]
       },
-      distance_km: min_distance
+      distance_km: selected_distance
     }
   end
 
